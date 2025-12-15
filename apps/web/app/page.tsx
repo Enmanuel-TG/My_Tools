@@ -9,7 +9,7 @@ export default function Home() {
     const url = encodeURIComponent(value);
     console.log('click')
     const res = await fetch(
-      `https://backend-music-mspi.onrender.com/download?url=${url}`
+      `https://my-tools-ocm5.onrender.com/download?url=${url}`
     );
 
     const data = await res.json();

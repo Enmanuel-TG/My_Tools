@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pathlib import Path
 import subprocess
@@ -6,6 +7,20 @@ import uuid
 import os
 
 app = FastAPI()
+
+origins = [
+    "http://localhost:3000",
+    "https://localhost:3000",
+    "https://my-tools-ocm5.onrender.com",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 DOWNLOAD_DIR = "downloads"
 DOWNLOAD_DIR_PATH = Path(DOWNLOAD_DIR)
