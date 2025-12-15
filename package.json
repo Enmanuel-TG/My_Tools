@@ -4,7 +4,7 @@
   "scripts": {
     "build": "turbo run build",
     "python": "python3 -m venv .venv && ./.venv/bin/python -m pip install -r apps/Api/requirements.txt",
-    "server": "uvicorn server:app --host 0.0.0.0 --port $PORT",
+    "server": "uvicorn apps.Api.main:app --host 0.0.0.0 --port $PORT",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
