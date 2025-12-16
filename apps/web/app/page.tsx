@@ -7,6 +7,47 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formatType, setFormatType] = useState<"audio" | "video">("audio");
+  const [cookiesFile, setCookiesFile] = useState<File | null>(null);
+  const [cookiesId, setCookiesId] = useState<string | null>(null);
+  const [uploadingCookies, setUploadingCookies] = useState(false);
+
+  async function uploadCookies() {
+    if (!cookiesFile) {
+      setError("Please select a cookies file");
+      return;
+    }
+
+    setUploadingCookies(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", cookiesFile);
+
+      const res = await fetch(
+        `https://my-tools-ocm5.onrender.com/upload-cookies`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!res.ok) {
+        const errorData = await res
+          .json()
+          .catch(() => ({ detail: res.statusText }));
+        throw new Error(errorData.detail || "Failed to upload cookies");
+      }
+
+      const data = await res.json();
+      setCookiesId(data.cookies_id);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload cookies");
+    } finally {
+      setUploadingCookies(false);
+    }
+  }
 
   async function DownLoad() {
     if (!value.trim()) {
@@ -18,9 +59,16 @@ export default function Home() {
     setError(null);
 
     try {
-      const url = encodeURIComponent(value);
+      const params = new URLSearchParams({
+        url: value,
+        format_type: formatType,
+      });
+      if (cookiesId) {
+        params.append("cookies_id", cookiesId);
+      }
+
       const res = await fetch(
-        `https://my-tools-ocm5.onrender.com/download?url=${url}&format_type=${formatType}`
+        `https://my-tools-ocm5.onrender.com/download?${params.toString()}`
       );
 
       if (!res.ok) {
@@ -126,6 +174,77 @@ export default function Home() {
               Video
             </label>
           </div>
+        </div>
+
+        <div>
+          <label
+            htmlFor="cookies"
+            style={{ display: "block", marginBottom: "0.5rem" }}
+          >
+            Cookies File (Optional - helps bypass bot detection):
+          </label>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            <input
+              id="cookies"
+              type="file"
+              accept=".txt,.json"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                setCookiesFile(file || null);
+                setCookiesId(null);
+              }}
+              disabled={loading || uploadingCookies}
+              style={{
+                flex: 1,
+                padding: "0.5rem",
+                fontSize: "0.9rem",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+              }}
+            />
+            {cookiesFile && (
+              <button
+                type="button"
+                onClick={uploadCookies}
+                disabled={loading || uploadingCookies || !!cookiesId}
+                style={{
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.9rem",
+                  backgroundColor: cookiesId ? "#4caf50" : "#0070f3",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor:
+                    loading || uploadingCookies || cookiesId
+                      ? "not-allowed"
+                      : "pointer",
+                }}
+              >
+                {uploadingCookies
+                  ? "Uploading..."
+                  : cookiesId
+                    ? "✓ Uploaded"
+                    : "Upload"}
+              </button>
+            )}
+          </div>
+          {cookiesId && (
+            <p
+              style={{
+                fontSize: "0.85rem",
+                color: "#4caf50",
+                marginTop: "0.25rem",
+              }}
+            >
+              Cookies loaded successfully
+            </p>
+          )}
+          <p
+            style={{ fontSize: "0.75rem", color: "#666", marginTop: "0.25rem" }}
+          >
+            Export cookies from your browser using extensions like &quot;Get
+            cookies.txt LOCALLY&quot; or &quot;cookies.txt&quot;
+          </p>
         </div>
 
         {error && (
