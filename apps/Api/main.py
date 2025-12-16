@@ -103,8 +103,9 @@ def download(
         "--add-header", "Accept-Language:en-US,en;q=0.9",
         # JavaScript runtime (if Node.js is available)
         *(["--js-runtimes", "node"] if check_node_available() else []),
-        # Additional options to reduce bot detection
-        "--extractor-args", "youtube:player_client=web",
+        # Additional options to reduce bot detection and handle restrictions
+        # Use android client (better for age-restricted and region-blocked videos)
+        "--extractor-args", "youtube:player_client=android",
         "--no-check-certificate",
         # Quiet mode to reduce output
         "--quiet",
@@ -132,6 +133,26 @@ def download(
                 raise HTTPException(
                     status_code=403,
                     detail="YouTube bot detection triggered. Consider using cookies for authentication."
+                )
+            elif "Video unavailable" in error_msg or "not available" in error_msg.lower():
+                raise HTTPException(
+                    status_code=404,
+                    detail="This video is unavailable. It may be private, deleted, age-restricted, or region-blocked. Try using cookies for authentication or check if the video URL is correct."
+                )
+            elif "Private video" in error_msg:
+                raise HTTPException(
+                    status_code=403,
+                    detail="This video is private. You need to be signed in with cookies to access it."
+                )
+            elif "age-restricted" in error_msg.lower() or "age restricted" in error_msg.lower():
+                raise HTTPException(
+                    status_code=403,
+                    detail="This video is age-restricted. Please upload cookies from a logged-in browser session to access it."
+                )
+            elif "region" in error_msg.lower() and "block" in error_msg.lower():
+                raise HTTPException(
+                    status_code=403,
+                    detail="This video is not available in your region. Try using cookies or a VPN."
                 )
             else:
                 raise HTTPException(status_code=500, detail=error_msg)

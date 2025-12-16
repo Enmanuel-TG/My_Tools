@@ -72,12 +72,24 @@ export default function Home() {
       );
 
       if (!res.ok) {
-        const errorData = await res
-          .json()
-          .catch(() => ({ detail: res.statusText }));
-        throw new Error(
-          errorData.detail || `HTTP error! status: ${res.status}`
-        );
+        // Try to parse error response as JSON
+        let errorMessage = `HTTP error! status: ${res.status}`;
+        try {
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const errorData = await res.json();
+            errorMessage =
+              errorData.detail || errorData.message || errorMessage;
+          } else {
+            // If not JSON, try to get text
+            const text = await res.text();
+            errorMessage = text || errorMessage;
+          }
+        } catch {
+          // If parsing fails, use status text
+          errorMessage = res.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       // Get the blob from the response
