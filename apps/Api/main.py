@@ -84,47 +84,72 @@ def download(
         if default_cookies.exists():
             cookies_path = default_cookies
 
-    # Base yt-dlp command with anti-bot measures
-    cmd = [
-        "yt-dlp",
-        # Format selection
-        "-f", "bestaudio/best" if format_type == "audio" else "best",
-        # Audio extraction (only for audio format)
-        *(["--extract-audio", "--audio-format", "mp3"] if format_type == "audio" else []),
-        # Output
-        "-o", output,
-        # Playlist handling
-        "--no-playlist",
-        # Cookies (if provided)
-        *(["--cookies", str(cookies_path)] if cookies_path and cookies_path.exists() else []),
-        # Anti-bot measures
-        "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "--referer", "https://www.youtube.com/",
-        "--add-header", "Accept-Language:en-US,en;q=0.9",
-        # JavaScript runtime (if Node.js is available)
-        *(["--js-runtimes", "node"] if check_node_available() else []),
-        # Additional options to reduce bot detection and handle restrictions
-        # Use android client (better for age-restricted and region-blocked videos)
-        "--extractor-args", "youtube:player_client=android",
-        "--no-check-certificate",
-        # Quiet mode to reduce output
-        "--quiet",
-        "--no-warnings",
-        url
-    ]
+    def build_cmd(player_client="android"):
+        """Build yt-dlp command with specified player client"""
+        return [
+            "yt-dlp",
+            # Format selection
+            "-f", "bestaudio/best" if format_type == "audio" else "best",
+            # Audio extraction (only for audio format)
+            *(["--extract-audio", "--audio-format", "mp3"] if format_type == "audio" else []),
+            # Output
+            "-o", output,
+            # Playlist handling
+            "--no-playlist",
+            # Cookies (if provided)
+            *(["--cookies", str(cookies_path)] if cookies_path and cookies_path.exists() else []),
+            # Anti-bot measures
+            "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "--referer", "https://www.youtube.com/",
+            "--add-header", "Accept-Language:en-US,en;q=0.9",
+            # JavaScript runtime (if Node.js is available)
+            *(["--js-runtimes", "node"] if check_node_available() else []),
+            # Player client (try different ones as fallback)
+            "--extractor-args", f"youtube:player_client={player_client}",
+            "--no-check-certificate",
+            # Quiet mode to reduce output
+            "--quiet",
+            "--no-warnings",
+            url
+        ]
+
+    # Try different player clients as fallback
+    player_clients = ["android", "web", "ios", "mweb"]
+    result = None
+    last_error = None
 
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=300  # 5 minute timeout
-        )
+        for player_client in player_clients:
+            cmd = build_cmd(player_client)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minute timeout
+            )
+            
+            # If successful, break out of loop
+            if result.returncode == 0:
+                break
+            
+            # Check if it's a player response error - try next client
+            error_msg = result.stderr or result.stdout or ""
+            if "Failed to extract any player response" in error_msg:
+                last_error = error_msg
+                continue  # Try next player client
+            
+            # For other errors, break and handle normally
+            break
 
         if result.returncode != 0:
-            error_msg = result.stderr or result.stdout or "Unknown error occurred"
+            error_msg = last_error or result.stderr or result.stdout or "Unknown error occurred"
             # Provide more helpful error messages
-            if "429" in error_msg or "Too Many Requests" in error_msg:
+            if "Failed to extract any player response" in error_msg:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to extract video data. This usually means YouTube has changed their API or the video requires authentication. Please try: 1) Upload cookies from a logged-in browser session, 2) Make sure yt-dlp is up to date, 3) Try again in a few minutes. If the issue persists, the video may be unavailable."
+                )
+            elif "429" in error_msg or "Too Many Requests" in error_msg:
                 raise HTTPException(
                     status_code=429,
                     detail="YouTube rate limit exceeded. Please try again later or use cookies for authentication."
